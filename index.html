@@ -1,0 +1,786 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PV Row Spacing Planner</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- React & ReactDOM -->
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+    <!-- Chart.js (More stable for browser usage) -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Babel (for JSX) -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        border: "hsl(214.3 31.8% 91.4%)",
+                        input: "hsl(214.3 31.8% 91.4%)",
+                        ring: "hsl(222.2 84% 4.9%)",
+                        background: "hsl(0 0% 100%)",
+                        foreground: "hsl(222.2 84% 4.9%)",
+                        primary: {
+                            DEFAULT: "hsl(222.2 47.4% 11.2%)",
+                            foreground: "hsl(210 40% 98%)",
+                        },
+                        muted: {
+                            DEFAULT: "hsl(210 40% 96.1%)",
+                            foreground: "hsl(215.4 16.3% 46.9%)",
+                        },
+                        card: {
+                            DEFAULT: "hsl(0 0% 100%)",
+                            foreground: "hsl(222.2 84% 4.9%)",
+                        },
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #f8fafc; }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        // --- 1. Embedded Data (47 Prefectures Lat/Lon) ---
+        const EMBEDDED_DATA = {
+            "metaVersion": "2.0.0",
+            "regions": [
+                { "id": "hokkaido", "nameJa": "北海道 (札幌)", "lat": 43.064, "lon": 141.347 },
+                { "id": "aomori", "nameJa": "青森", "lat": 40.824, "lon": 140.740 },
+                { "id": "iwate", "nameJa": "岩手 (盛岡)", "lat": 39.704, "lon": 141.156 },
+                { "id": "miyagi", "nameJa": "宮城 (仙台)", "lat": 38.269, "lon": 140.872 },
+                { "id": "akita", "nameJa": "秋田", "lat": 39.719, "lon": 140.103 },
+                { "id": "yamagata", "nameJa": "山形", "lat": 38.240, "lon": 140.363 },
+                { "id": "fukushima", "nameJa": "福島", "lat": 37.750, "lon": 140.468 },
+                { "id": "ibaraki", "nameJa": "茨城 (水戸)", "lat": 36.341, "lon": 140.447 },
+                { "id": "tochigi", "nameJa": "栃木 (宇都宮)", "lat": 36.565, "lon": 139.883 },
+                { "id": "gunma", "nameJa": "群馬 (前橋)", "lat": 36.391, "lon": 139.060 },
+                { "id": "saitama", "nameJa": "埼玉", "lat": 35.857, "lon": 139.649 },
+                { "id": "chiba", "nameJa": "千葉", "lat": 35.605, "lon": 140.123 },
+                { "id": "tokyo", "nameJa": "東京", "lat": 35.689, "lon": 139.692 },
+                { "id": "kanagawa", "nameJa": "神奈川 (横浜)", "lat": 35.448, "lon": 139.642 },
+                { "id": "niigata", "nameJa": "新潟", "lat": 37.902, "lon": 139.023 },
+                { "id": "toyama", "nameJa": "富山", "lat": 36.696, "lon": 137.211 },
+                { "id": "ishikawa", "nameJa": "石川 (金沢)", "lat": 36.594, "lon": 136.626 },
+                { "id": "fukui", "nameJa": "福井", "lat": 36.065, "lon": 136.222 },
+                { "id": "yamanashi", "nameJa": "山梨 (甲府)", "lat": 35.664, "lon": 138.568 },
+                { "id": "nagano", "nameJa": "長野", "lat": 36.651, "lon": 138.181 },
+                { "id": "gifu", "nameJa": "岐阜", "lat": 35.391, "lon": 136.722 },
+                { "id": "shizuoka", "nameJa": "静岡", "lat": 34.977, "lon": 138.383 },
+                { "id": "aichi", "nameJa": "愛知 (名古屋)", "lat": 35.180, "lon": 136.907 },
+                { "id": "mie", "nameJa": "三重 (津)", "lat": 34.730, "lon": 136.509 },
+                { "id": "shiga", "nameJa": "滋賀 (大津)", "lat": 35.004, "lon": 135.869 },
+                { "id": "kyoto", "nameJa": "京都", "lat": 35.021, "lon": 135.756 },
+                { "id": "osaka", "nameJa": "大阪", "lat": 34.686, "lon": 135.520 },
+                { "id": "hyogo", "nameJa": "兵庫 (神戸)", "lat": 34.691, "lon": 135.183 },
+                { "id": "nara", "nameJa": "奈良", "lat": 34.685, "lon": 135.833 },
+                { "id": "wakayama", "nameJa": "和歌山", "lat": 34.226, "lon": 135.168 },
+                { "id": "tottori", "nameJa": "鳥取", "lat": 35.503, "lon": 134.238 },
+                { "id": "shimane", "nameJa": "島根 (松江)", "lat": 35.472, "lon": 133.050 },
+                { "id": "okayama", "nameJa": "岡山", "lat": 34.662, "lon": 133.934 },
+                { "id": "hiroshima", "nameJa": "広島", "lat": 34.396, "lon": 132.459 },
+                { "id": "yamaguchi", "nameJa": "山口", "lat": 34.186, "lon": 131.471 },
+                { "id": "tokushima", "nameJa": "徳島", "lat": 34.066, "lon": 134.559 },
+                { "id": "kagawa", "nameJa": "香川 (高松)", "lat": 34.340, "lon": 134.043 },
+                { "id": "ehime", "nameJa": "愛媛 (松山)", "lat": 33.841, "lon": 132.766 },
+                { "id": "kochi", "nameJa": "高知", "lat": 33.559, "lon": 133.531 },
+                { "id": "fukuoka", "nameJa": "福岡", "lat": 33.606, "lon": 130.418 },
+                { "id": "saga", "nameJa": "佐賀", "lat": 33.249, "lon": 130.299 },
+                { "id": "nagasaki", "nameJa": "長崎", "lat": 32.744, "lon": 129.873 },
+                { "id": "kumamoto", "nameJa": "熊本", "lat": 32.789, "lon": 130.742 },
+                { "id": "oita", "nameJa": "大分", "lat": 33.238, "lon": 131.613 },
+                { "id": "miyazaki", "nameJa": "宮崎", "lat": 31.911, "lon": 131.423 },
+                { "id": "kagoshima", "nameJa": "鹿児島", "lat": 31.560, "lon": 130.558 },
+                { "id": "okinawa", "nameJa": "沖縄 (那覇)", "lat": 26.212, "lon": 127.681 }
+            ]
+        };
+
+        // --- 2. Calculation Utilities ---
+        const toRadians = (deg) => deg * Math.PI / 180;
+        const toDegrees = (rad) => rad * 180 / Math.PI;
+
+        const calculateSolarPosition = (lat, lon, hour) => {
+            const DECLINATION = -23.44; 
+            const EQ_OF_TIME = 0; 
+            const latRad = toRadians(lat);
+            const decRad = toRadians(DECLINATION);
+            const timeOffset = (lon - 135) / 15;
+            const solarTime = hour + timeOffset + (EQ_OF_TIME / 60);
+            const t = (solarTime - 12) * 15; 
+            const tRad = toRadians(t);
+            const sinH = Math.sin(latRad) * Math.sin(decRad) + Math.cos(latRad) * Math.cos(decRad) * Math.cos(tRad);
+            const hRad = Math.asin(Math.max(-1, Math.min(1, sinH)));
+            const hDeg = toDegrees(hRad);
+            
+            let azDeg;
+            if (hDeg < 0) {
+                azDeg = 0;
+            } else {
+                const sinA = (Math.cos(decRad) * Math.sin(tRad)) / Math.cos(hRad);
+                const cosA = (Math.sin(hRad) * Math.sin(latRad) - Math.sin(decRad)) / (Math.cos(hRad) * Math.cos(latRad));
+                const azRad = Math.atan2(sinA, cosA); 
+                azDeg = toDegrees(azRad) + 180; 
+            }
+            return { altitudeDeg: Math.max(0, hDeg), azimuthDeg: azDeg };
+        };
+
+        const calculateTopGLHeight = ({ panelLengthMm, verticalCount, tiltDeg, bottomClearanceMm }) => {
+            if (panelLengthMm <= 0 || verticalCount <= 0 || bottomClearanceMm < 0) return 0;
+            const totalLengthM = (panelLengthMm * verticalCount) / 1000;
+            const tiltRad = toRadians(tiltDeg);
+            const relativeHeightM = totalLengthM * Math.sin(tiltRad);
+            const bottomM = bottomClearanceMm / 1000;
+            return bottomM + relativeHeightM;
+        };
+
+        const calculateRowShadow = (topGLHeightM, sunAltitudeDeg, sunAzimuthDeg, panelAzimuthDeg) => {
+            const sunAltRad = toRadians(sunAltitudeDeg);
+            let lBasic = 0;
+            if (sunAltitudeDeg <= 0) {
+                lBasic = Infinity;
+            } else if (topGLHeightM > 0) {
+                lBasic = topGLHeightM / Math.tan(sunAltRad);
+            }
+            const deltaDeg = sunAzimuthDeg - panelAzimuthDeg;
+            const deltaRad = toRadians(deltaDeg);
+            const cosDelta = Math.cos(deltaRad);
+            if (cosDelta <= 0 || sunAltitudeDeg <= 0) {
+                return { lBasic: lBasic, lRow: 0, isBackside: true, azimuthDiffDeg: deltaDeg };
+            }
+            const lRow = lBasic * cosDelta;
+            return { lBasic: lBasic, lRow: lRow, isBackside: false, azimuthDiffDeg: deltaDeg };
+        };
+
+        const calculateRowSpacing = (shadowLengthM, mode, value) => {
+            if (shadowLengthM === Infinity || shadowLengthM < 0) return 0;
+            return mode === 'factor' ? shadowLengthM * value : shadowLengthM + value;
+        };
+
+        // --- 3. UI Components (Simplified) ---
+        const { useState, useEffect, useRef } = React;
+
+        // Icons (SVG Components)
+        const IconSun = () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg>;
+        const IconRuler = () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21.3 15.3a2.4 2.4 0 0 1 0 3.4l-2.6 2.6a2.4 2.4 0 0 1-3.4 0L2.7 8.7a2.41 2.41 0 0 1 0-3.4l2.6-2.6a2.41 2.41 0 0 1 3.4 0Z"/><path d="m14.5 12.5 2-2"/><path d="m11.5 9.5 2-2"/><path d="m8.5 6.5 2-2"/><path d="m17.5 15.5 2-2"/></svg>;
+        const IconRefresh = () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg>;
+        const IconAlert = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>;
+        const IconInfo = () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>;
+
+        const Card = ({ children, className }) => <div className={`rounded-lg border bg-white text-slate-900 shadow-sm ${className || ''}`}>{children}</div>;
+        const CardHeader = ({ children, className }) => <div className={`flex flex-col space-y-1.5 p-6 ${className || ''}`}>{children}</div>;
+        const CardTitle = ({ children, className }) => <h3 className={`text-2xl font-semibold leading-none tracking-tight ${className || ''}`}>{children}</h3>;
+        const CardDescription = ({ children, className }) => <p className={`text-sm text-slate-500 ${className || ''}`}>{children}</p>;
+        const CardContent = ({ children, className }) => <div className={`p-6 pt-0 ${className || ''}`}>{children}</div>;
+        const CardFooter = ({ children, className }) => <div className={`flex items-center p-6 pt-0 ${className || ''}`}>{children}</div>;
+        const Button = ({ children, onClick, className, variant='default', size='default' }) => {
+            const baseClass = "inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:opacity-50 disabled:pointer-events-none";
+            const variants = {
+                default: "bg-slate-900 text-white hover:bg-slate-900/90",
+                ghost: "hover:bg-slate-100 hover:text-slate-900",
+                outline: "border border-slate-200 bg-white hover:bg-slate-100 hover:text-slate-900",
+            };
+            const sizes = {
+                default: "h-10 px-4 py-2",
+                sm: "h-9 rounded-md px-3",
+                lg: "h-11 rounded-md px-8",
+            };
+            return <button onClick={onClick} className={`${baseClass} ${variants[variant] || variants.default} ${sizes[size] || sizes.default} ${className || ''}`}>{children}</button>;
+        };
+        const Input = ({ type, value, onChange, placeholder, className }) => (
+            <input 
+                type={type} 
+                value={value} 
+                onChange={onChange} 
+                placeholder={placeholder}
+                className={`flex h-10 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm placeholder:text-slate-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-950 focus-visible:ring-offset-2 ${className || ''}`} 
+            />
+        );
+        const Label = ({ children, className }) => <label className={`text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 ${className || ''}`}>{children}</label>;
+        
+        // Simplified Tabs
+        const Tabs = ({ value, onValueChange, children }) => {
+            return <div>{React.Children.map(children, child => React.cloneElement(child, { value, onValueChange }))}</div>;
+        };
+        const TabsList = ({ children, className }) => <div className={`inline-flex h-10 items-center justify-center rounded-md bg-slate-100 p-1 text-slate-500 w-full ${className}`}>{children}</div>;
+        const TabsTrigger = ({ value, onValueChange, children, activeValue }) => (
+            <button 
+                onClick={() => onValueChange(value)}
+                className={`inline-flex items-center justify-center whitespace-nowrap rounded-sm px-3 py-1.5 text-sm font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 w-full ${activeValue === value ? 'bg-white text-slate-950 shadow-sm' : ''}`}
+            >
+                {children}
+            </button>
+        );
+        const TabsWrapper = ({ defaultValue, onValueChange, children }) => {
+            const [active, setActive] = useState(defaultValue);
+            const handleChange = (val) => {
+                setActive(val);
+                if(onValueChange) onValueChange(val);
+            }
+            return (
+                <div className="w-full">
+                    {React.Children.map(children, child => {
+                        if (child.type === TabsList) {
+                            return <TabsList className={child.props.className}>
+                                {React.Children.map(child.props.children, trigger => (
+                                    React.cloneElement(trigger, { activeValue: active, onValueChange: handleChange })
+                                ))}
+                            </TabsList>
+                        }
+                        if (child.type === TabsContent && child.props.value === active) {
+                            return child;
+                        }
+                        return null;
+                    })}
+                </div>
+            )
+        };
+        const TabsContent = ({ children, className }) => <div className={`mt-2 ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${className}`}>{children}</div>;
+
+        // Diagram Component
+        const Diagram = ({ shadowLength, rowSpacing, panelHeightGL, sunAltitude, isBackside }) => {
+            const width = 600;
+            const height = 300;
+            const groundY = 250;
+            const scale = 50; 
+            const panelX = 100;
+            const panelTopY = groundY - (panelHeightGL * scale);
+            const shadowEndX = panelX + (shadowLength * scale);
+            const nextRowX = panelX + (rowSpacing * scale);
+            const maxDrawX = width - 20;
+            const effectiveShadowX = Math.min(shadowEndX, maxDrawX);
+            const effectiveNextRowX = Math.min(nextRowX, maxDrawX);
+
+            if (isBackside) {
+                return (
+                    <div className="w-full border rounded-lg p-4 bg-white overflow-hidden text-center text-slate-400 py-12">
+                        <p>背面日射のため、影の図示はありません</p>
+                    </div>
+                );
+            }
+
+            return (
+                <div className="w-full border rounded-lg p-4 bg-white overflow-hidden">
+                    <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-auto">
+                        <line x1="0" y1={groundY} x2={width} y2={groundY} stroke="#666" strokeWidth="2" />
+                        <text x="10" y={groundY + 20} fontSize="12" fill="#666">地面 (GL)</text>
+                        <line x1={panelX} y1={groundY} x2={panelX} y2={panelTopY} stroke="#333" strokeWidth="4" />
+                        <line x1={panelX - 10} y1={panelTopY + 10} x2={panelX + 10} y2={panelTopY - 10} stroke="#2563eb" strokeWidth="6" />
+                        <line x1={panelX} y1={panelTopY} x2={effectiveShadowX} y2={groundY} stroke="#eab308" strokeWidth="1" strokeDasharray="4" />
+                        <line x1={panelX} y1={groundY} x2={effectiveShadowX} y2={groundY} stroke="#000" strokeWidth="4" opacity="0.2" />
+                        <text x={(panelX + effectiveShadowX) / 2} y={groundY - 5} fontSize="12" textAnchor="middle" fill="#666">影: {shadowLength.toFixed(2)}m</text>
+                        {rowSpacing > 0 && (
+                            <>
+                                <line x1={panelX} y1={groundY + 40} x2={effectiveNextRowX} y2={groundY + 40} stroke="#2563eb" strokeWidth="1" />
+                                <text x={(panelX + effectiveNextRowX) / 2} y={groundY + 35} fontSize="14" fontWeight="bold" textAnchor="middle" fill="#2563eb">推奨間隔: {rowSpacing.toFixed(2)}m</text>
+                                <g opacity="0.5">
+                                    <line x1={effectiveNextRowX} y1={groundY} x2={effectiveNextRowX} y2={panelTopY} stroke="#999" strokeWidth="2" strokeDasharray="4" />
+                                    <line x1={effectiveNextRowX - 10} y1={panelTopY + 10} x2={effectiveNextRowX + 10} y2={panelTopY - 10} stroke="#999" strokeWidth="4" />
+                                </g>
+                            </>
+                        )}
+                    </svg>
+                </div>
+            );
+        };
+
+        // --- Chart Component using Chart.js ---
+        const SpacingChart = ({ data }) => {
+            const chartRef = useRef(null);
+            const canvasRef = useRef(null);
+
+            useEffect(() => {
+                if (!canvasRef.current) return;
+                
+                // Destroy existing chart
+                if (chartRef.current) {
+                    chartRef.current.destroy();
+                }
+
+                const ctx = canvasRef.current.getContext('2d');
+                
+                chartRef.current = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: data.map(d => d.time),
+                        datasets: [{
+                            label: '推奨間隔 (m)',
+                            data: data.map(d => d.spacing),
+                            borderColor: 'hsl(222.2, 47.4%, 11.2%)',
+                            backgroundColor: 'rgba(30, 41, 59, 0.1)',
+                            borderWidth: 2,
+                            tension: 0.1,
+                            pointRadius: 4,
+                            pointHoverRadius: 6,
+                            fill: true
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            tooltip: {
+                                callbacks: {
+                                    label: (context) => `推奨間隔: ${context.raw} m`
+                                }
+                            },
+                            legend: {
+                                display: false
+                            }
+                        },
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                title: {
+                                    display: true,
+                                    text: '間隔 (m)'
+                                }
+                            }
+                        }
+                    }
+                });
+
+                return () => {
+                    if (chartRef.current) {
+                        chartRef.current.destroy();
+                    }
+                };
+            }, [data]);
+
+            return (
+                <div style={{ height: '200px', width: '100%' }}>
+                    <canvas ref={canvasRef}></canvas>
+                </div>
+            );
+        };
+
+
+        // --- 4. Main App Component ---
+        const App = () => {
+            // State
+            const [solarData, setSolarData] = useState(null);
+            const [regionId, setRegionId] = useState('tokyo');
+            const [customLat, setCustomLat] = useState(35.689);
+            const [customLon, setCustomLon] = useState(139.692);
+            const [time, setTime] = useState('12:00');
+            const [panelAzimuth, setPanelAzimuth] = useState('180');
+            const [glMode, setGlMode] = useState('direct');
+            const [manualGlHeight, setManualGlHeight] = useState(1.5);
+            const [panelLengthMm, setPanelLengthMm] = useState(2278);
+            const [panelWidthMm, setPanelWidthMm] = useState(1134);
+            const [verticalCount, setVerticalCount] = useState(2);
+            const [tiltDeg, setTiltDeg] = useState(20);
+            const [bottomClearanceMm, setBottomClearanceMm] = useState(0);
+            const [marginMode, setMarginMode] = useState('factor');
+            const [marginFactor, setMarginFactor] = useState(1.0);
+            const [marginFixedM, setMarginFixedM] = useState(0.5);
+            const [existingSpacing, setExistingSpacing] = useState('');
+            const [result, setResult] = useState(null);
+            const [calculatedGlHeight, setCalculatedGlHeight] = useState(0);
+            const [chartData, setChartData] = useState([]);
+            const [maxSpacing, setMaxSpacing] = useState({ time: '', value: 0 });
+
+            // Hydrate Data on Mount
+            useEffect(() => {
+                const hydratedRegions = EMBEDDED_DATA.regions.map(region => {
+                    const times = [];
+                    for (let h = 9; h <= 15; h++) {
+                        const pos = calculateSolarPosition(region.lat, region.lon, h);
+                        times.push({
+                            time: `${h < 10 ? '0' : ''}${h}:00`,
+                            altitudeDeg: Number(pos.altitudeDeg.toFixed(1)),
+                            azimuthDeg: Number(pos.azimuthDeg.toFixed(1))
+                        });
+                    }
+                    return {
+                        ...region,
+                        solarDesignSets: [{
+                            key: 'winter_solstice',
+                            label: '冬至（12/21 相当）',
+                            description: '冬至の日本標準時における太陽高度・方位 (計算値)',
+                            times: times
+                        }]
+                    };
+                });
+                
+                setSolarData({ regions: hydratedRegions });
+            }, []);
+
+            useEffect(() => {
+                const h = calculateTopGLHeight({
+                    panelLengthMm: Number(panelLengthMm),
+                    verticalCount: Number(verticalCount),
+                    tiltDeg: Number(tiltDeg),
+                    bottomClearanceMm: Number(bottomClearanceMm)
+                });
+                setCalculatedGlHeight(h);
+            }, [panelLengthMm, verticalCount, tiltDeg, bottomClearanceMm]);
+
+            // Helper
+            const getTimeOptions = () => {
+                if (regionId === 'custom') {
+                    return [9,10,11,12,13,14,15].map(h => ({ time: `${h < 10 ? '0' : ''}${h}:00` }));
+                }
+                if (!solarData) return [];
+                const region = solarData.regions.find(r => r.id === regionId);
+                if (!region) return [];
+                const set = region.solarDesignSets.find(s => s.key === 'winter_solstice');
+                return set ? set.times : [];
+            };
+
+            const setAzimuthPreset = (val) => setPanelAzimuth(String(val));
+
+            const handleCalculate = () => {
+                let currentLat, currentLon, currentRegionName, currentAltitude, currentAzimuth;
+
+                if (regionId === 'custom') {
+                    currentLat = parseFloat(customLat);
+                    currentLon = parseFloat(customLon);
+                    currentRegionName = `カスタム地点 (緯度${currentLat}, 経度${currentLon})`;
+                    
+                    const h = parseInt(time.split(':')[0], 10);
+                    const pos = calculateSolarPosition(currentLat, currentLon, h);
+                    currentAltitude = Number(pos.altitudeDeg.toFixed(1));
+                    currentAzimuth = Number(pos.azimuthDeg.toFixed(1));
+                } else {
+                    if (!solarData) return;
+                    const region = solarData.regions.find(r => r.id === regionId);
+                    if (!region) return;
+                    const designSet = region.solarDesignSets.find(s => s.key === 'winter_solstice');
+                    const timeData = designSet.times.find(t => t.time === time);
+                    if (!timeData) { alert("選択された時刻のデータがありません"); return; }
+                    
+                    currentLat = region.lat;
+                    currentLon = region.lon;
+                    currentRegionName = region.nameJa;
+                    currentAltitude = timeData.altitudeDeg;
+                    currentAzimuth = timeData.azimuthDeg;
+                }
+
+                const hTop = glMode === 'direct' ? Number(manualGlHeight) : calculatedGlHeight;
+
+                const shadowResult = calculateRowShadow(
+                    hTop, 
+                    currentAltitude, 
+                    currentAzimuth, 
+                    Number(panelAzimuth)
+                );
+
+                const marginVal = marginMode === 'factor' ? Number(marginFactor) : Number(marginFixedM);
+                const spacing = calculateRowSpacing(shadowResult.lRow, marginMode, marginVal);
+
+                setResult({
+                    regionName: currentRegionName,
+                    time: time,
+                    altitudeDeg: currentAltitude,
+                    azimuthDeg: currentAzimuth,
+                    panelAzimuthDeg: Number(panelAzimuth),
+                    hTop: hTop,
+                    lBasic: shadowResult.lBasic,
+                    lRow: shadowResult.lRow,
+                    isBackside: shadowResult.isBackside,
+                    recommendedSpacing: spacing,
+                    azimuthDiff: shadowResult.azimuthDiffDeg,
+                    marginDetail: marginMode === 'factor' ? `× ${marginFactor}` : `+ ${marginFixedM}m`
+                });
+
+                // Chart Data Logic
+                const hours = [9, 10, 11, 12, 13, 14, 15];
+                const points = hours.map(h => {
+                    const timeStr = `${h < 10 ? '0' : ''}${h}:00`;
+                    let alt, az;
+                    
+                    if (regionId === 'custom') {
+                         const pos = calculateSolarPosition(currentLat, currentLon, h);
+                         alt = Number(pos.altitudeDeg.toFixed(1));
+                         az = Number(pos.azimuthDeg.toFixed(1));
+                    } else {
+                        const region = solarData.regions.find(r => r.id === regionId);
+                        const designSet = region.solarDesignSets.find(s => s.key === 'winter_solstice');
+                        const tData = designSet.times.find(t => t.time === timeStr);
+                        alt = tData.altitudeDeg;
+                        az = tData.azimuthDeg;
+                    }
+
+                    const sr = calculateRowShadow(
+                        hTop,
+                        alt,
+                        az,
+                        Number(panelAzimuth)
+                    );
+                    const sp = calculateRowSpacing(sr.lRow, marginMode, marginVal);
+                    return {
+                        time: timeStr,
+                        spacing: Number(sp.toFixed(2)),
+                        lRow: Number(sr.lRow.toFixed(2)),
+                        isBackside: sr.isBackside
+                    };
+                });
+                setChartData(points);
+                const maxVal = points.reduce((max, curr) => curr.spacing > max.value ? { time: curr.time, value: curr.spacing } : max, { time: '', value: 0 });
+                setMaxSpacing(maxVal);
+            };
+
+            if (!solarData) return <div className="p-10 text-center">Loading...</div>;
+
+            return (
+                <div className="container mx-auto p-4 md:p-8 max-w-6xl">
+                    <header className="mb-8 border-b pb-4 flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                            <div className="w-8 h-8 bg-slate-900 rounded-md flex items-center justify-center text-white font-bold">PV</div>
+                            <h1 className="text-xl font-bold">Row Spacing Planner</h1>
+                        </div>
+                        <div className="text-right text-xs text-slate-500">
+                            <p>Version 1.0.0</p>
+                            <p>Last Updated: 2025.12.10</p>
+                        </div>
+                    </header>
+
+                    <div className="flex flex-col md:flex-row gap-6">
+                        {/* Input Column */}
+                        <div className="w-full md:w-7/12 space-y-6">
+                            <Card>
+                                <CardHeader>
+                                    <CardTitle className="flex items-center gap-2"><IconSun/> 設計条件</CardTitle>
+                                    <CardDescription>地域とパネル条件を入力してください</CardDescription>
+                                </CardHeader>
+                                <CardContent className="space-y-6">
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div className="space-y-2">
+                                            <Label>地域 (47都道府県)</Label>
+                                            <select className="flex h-10 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm" value={regionId} onChange={(e) => setRegionId(e.target.value)}>
+                                                <option value="custom">カスタム（緯度経度を指定）</option>
+                                                {solarData.regions.map(r => <option key={r.id} value={r.id}>{r.nameJa}</option>)}
+                                            </select>
+                                            {regionId === 'custom' && (
+                                                <div className="grid grid-cols-2 gap-2 mt-2 p-2 bg-slate-50 rounded border">
+                                                    <div><Label className="text-xs">緯度 (North)</Label><Input type="number" step="0.001" value={customLat} onChange={(e) => setCustomLat(e.target.value)} /></div>
+                                                    <div><Label className="text-xs">経度 (East)</Label><Input type="number" step="0.001" value={customLon} onChange={(e) => setCustomLon(e.target.value)} /></div>
+                                                </div>
+                                            )}
+                                        </div>
+                                        <div className="space-y-2">
+                                            <Label>時刻 (冬至)</Label>
+                                            <select className="flex h-10 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm" value={time} onChange={(e) => setTime(e.target.value)}>
+                                                {getTimeOptions().map(t => <option key={t.time} value={t.time}>{t.time}</option>)}
+                                            </select>
+                                        </div>
+                                    </div>
+
+                                    <div className="space-y-3">
+                                        <Label>パネル方位角 Am [deg]</Label>
+                                        <div className="flex gap-2 items-center">
+                                            <Input type="number" value={panelAzimuth} onChange={(e) => setPanelAzimuth(e.target.value)} placeholder="例: 180" className="w-32"/>
+                                            <div className="flex flex-wrap gap-2">
+                                                <Button variant="outline" size="sm" onClick={() => setAzimuthPreset(180)}>南(180)</Button>
+                                                <Button variant="outline" size="sm" onClick={() => setAzimuthPreset(135)}>南東(135)</Button>
+                                                <Button variant="outline" size="sm" onClick={() => setAzimuthPreset(225)}>南西(225)</Button>
+                                                <Button variant="outline" size="sm" onClick={() => setAzimuthPreset(90)}>東(90)</Button>
+                                                <Button variant="outline" size="sm" onClick={() => setAzimuthPreset(270)}>西(270)</Button>
+                                            </div>
+                                        </div>
+                                        <div className="text-xs text-slate-500 bg-slate-100 p-2 rounded"><span className="font-semibold">方位ガイド:</span> 北=0°, 東=90°, 南=180°, 西=270°</div>
+                                    </div>
+
+                                    <div className="space-y-2">
+                                        <Label>パネル上端 GL高さ</Label>
+                                        <TabsWrapper defaultValue="direct" onValueChange={setGlMode}>
+                                            <TabsList>
+                                                <TabsTrigger value="direct">直接入力</TabsTrigger>
+                                                <TabsTrigger value="panel">寸法から計算</TabsTrigger>
+                                            </TabsList>
+                                            <TabsContent value="direct" className="space-y-4 pt-4">
+                                                <div className="space-y-2">
+                                                    <Label>上端 高さ [m]</Label>
+                                                    <Input type="number" step="0.01" value={manualGlHeight} onChange={(e) => setManualGlHeight(e.target.value)} />
+                                                    <p className="text-[10px] text-slate-500">※パネル最下部から最上部までの垂直高さを入力してください（地面からの架台の高さは含めず、純粋なパネル部分の高さ差のみ）。</p>
+                                                </div>
+                                            </TabsContent>
+                                            <TabsContent value="panel" className="space-y-4 pt-4">
+                                                <div className="grid grid-cols-2 gap-4">
+                                                    <div className="space-y-2"><Label>パネル長辺 [mm]</Label><Input type="number" value={panelLengthMm} onChange={(e) => setPanelLengthMm(e.target.value)} /></div>
+                                                    <div className="space-y-2"><Label>縦段数</Label><Input type="number" value={verticalCount} onChange={(e) => setVerticalCount(e.target.value)} /></div>
+                                                    <div className="space-y-2"><Label>傾斜角 [deg]</Label><Input type="number" value={tiltDeg} onChange={(e) => setTiltDeg(e.target.value)} /></div>
+                                                    <div className="space-y-2">
+                                                        <Label>下端 GL [mm]</Label>
+                                                        <Input type="number" value={bottomClearanceMm} onChange={(e) => setBottomClearanceMm(e.target.value)} />
+                                                        <p className="text-[10px] text-red-500">※通常は0のままにしてください（変更不要）</p>
+                                                    </div>
+                                                </div>
+                                                <div className="bg-slate-100 p-3 rounded-md text-sm flex justify-between items-center font-medium">
+                                                    <span>計算上の上端GL:</span>
+                                                    <span className="text-lg">{calculatedGlHeight.toFixed(3)} m</span>
+                                                </div>
+                                            </TabsContent>
+                                        </TabsWrapper>
+                                    </div>
+
+                                    <div className="space-y-3 pt-2 border-t">
+                                        <Label>安全マージン</Label>
+                                        <div className="flex items-center gap-4">
+                                            <label className="flex items-center space-x-2 text-sm cursor-pointer"><input type="radio" checked={marginMode === 'factor'} onChange={() => setMarginMode('factor')} /><span>割増係数</span></label>
+                                            <label className="flex items-center space-x-2 text-sm cursor-pointer"><input type="radio" checked={marginMode === 'fixed'} onChange={() => setMarginMode('fixed')} /><span>固定距離加算</span></label>
+                                        </div>
+                                        {marginMode === 'factor' ? (
+                                            <div className="flex items-center gap-2"><Label className="w-20">係数</Label><Input type="number" step="0.1" value={marginFactor} onChange={(e) => setMarginFactor(e.target.value)} className="w-32" /><span className="text-sm text-slate-500">倍</span></div>
+                                        ) : (
+                                            <div className="flex items-center gap-2"><Label className="w-20">追加距離</Label><Input type="number" step="0.1" value={marginFixedM} onChange={(e) => setMarginFixedM(e.target.value)} className="w-32" /><span className="text-sm text-slate-500">m</span></div>
+                                        )}
+                                    </div>
+                                </CardContent>
+                                <CardFooter>
+                                    <Button className="w-full text-lg h-12" onClick={handleCalculate}><IconRuler/> <span className="ml-2">行間隔を計算</span></Button>
+                                </CardFooter>
+                            </Card>
+                        </div>
+
+                        {/* Result Column */}
+                        <div className="w-full md:w-5/12 space-y-6">
+                            {result ? (
+                                <Card className={`border ${result.isBackside ? 'border-amber-400 bg-amber-50' : 'border-slate-200 bg-slate-50/50'}`}>
+                                    <CardHeader className={`${result.isBackside ? 'bg-amber-100/50' : 'bg-slate-100/50'} pb-4`}>
+                                        <CardTitle className="text-slate-900 flex justify-between">
+                                            計算結果
+                                            {result.isBackside && <span className="text-xs bg-amber-200 text-amber-800 px-2 py-1 rounded">背面日射</span>}
+                                        </CardTitle>
+                                        <CardDescription>{result.regionName} / 冬至 {result.time}</CardDescription>
+                                    </CardHeader>
+                                    <CardContent className="space-y-6 pt-6">
+                                        {result.isBackside ? (
+                                            <div className="text-center p-4 bg-white rounded-lg border border-amber-200 text-amber-800">
+                                                <IconAlert className="w-8 h-8 mx-auto mb-2 text-amber-600"/>
+                                                <p className="font-bold">影による制約なし</p>
+                                                <p className="text-sm mt-1">太陽がパネルの背面（または真横）にあるため、<br/>前列パネルは後列に影を落としません。</p>
+                                            </div>
+                                        ) : (
+                                            <div className="text-center space-y-1">
+                                                <p className="text-sm text-slate-500">推奨行間隔 (最小ピッチ)</p>
+                                                <p className="text-4xl font-bold text-slate-900">{result.recommendedSpacing.toFixed(2)} <span className="text-xl font-normal text-slate-500">m</span></p>
+                                                <p className="text-xs text-slate-400">(= 行方向影長 {result.lRow.toFixed(2)} m {result.marginDetail})</p>
+                                            </div>
+                                        )}
+                                        <div className="grid grid-cols-2 gap-y-3 gap-x-2 text-sm bg-white p-4 rounded-lg border">
+                                            <div><span className="text-slate-500 block text-xs">太陽高度</span><span className="font-medium">{result.altitudeDeg}°</span></div>
+                                            <div><span className="text-slate-500 block text-xs">GL高さ</span><span className="font-medium">{result.hTop.toFixed(3)} m</span></div>
+                                            <div className="col-span-2 border-t my-1"></div>
+                                            <div><span className="text-slate-500 block text-xs">太陽方位 As</span><span className="font-medium">{result.azimuthDeg}°</span></div>
+                                            <div><span className="text-slate-500 block text-xs">パネル方位 Am</span><span className="font-medium">{result.panelAzimuthDeg}°</span></div>
+                                            <div><span className="text-slate-500 block text-xs">方位差 ΔA (As-Am)</span><span className="font-medium">{result.azimuthDiff.toFixed(1)}°</span></div>
+                                            <div><span className="text-slate-500 block text-xs">基本影長 L_basic</span><span className="font-medium">{result.lBasic === Infinity ? '∞' : result.lBasic.toFixed(2)} m</span></div>
+                                            <div className="col-span-2 bg-blue-50 p-2 rounded mt-1">
+                                                <span className="text-blue-700 block text-xs font-bold">行方向影長 L_row</span>
+                                                <span className="font-medium text-lg text-blue-700">{result.lRow.toFixed(2)} m</span>
+                                                <span className="text-xs text-slate-500 block">= L_basic × cos(ΔA)</span>
+                                            </div>
+                                        </div>
+
+                                        {/* Chart Section */}
+                                        {chartData.length > 0 && (
+                                            <div className="border rounded-lg p-4 bg-white">
+                                                <div className="flex justify-between items-center mb-4">
+                                                    <h4 className="text-sm font-semibold flex items-center gap-1"><IconInfo className="w-4 h-4"/> 時間変化 (9:00-15:00)</h4>
+                                                    <div className="text-xs bg-slate-100 px-2 py-1 rounded">
+                                                        最大ピッチ: <span className="font-bold text-red-600">{maxSpacing.value.toFixed(2)}m</span> ({maxSpacing.time})
+                                                    </div>
+                                                </div>
+                                                
+                                                <SpacingChart data={chartData} />
+
+                                                <p className="text-xs text-slate-400 mt-2 text-center">※赤字は9:00-15:00の範囲内での最大必要間隔</p>
+                                            </div>
+                                        )}
+
+                                        <div className="space-y-2">
+                                            <Label className="text-xs text-slate-500">配置イメージ (断面)</Label>
+                                            <Diagram shadowLength={result.lRow} rowSpacing={result.recommendedSpacing} panelHeightGL={result.hTop} sunAltitude={result.altitudeDeg} isBackside={result.isBackside} />
+                                        </div>
+                                        <div className="pt-4 border-t space-y-3">
+                                            <Label className="flex items-center gap-2 text-slate-500"><IconRefresh/> 既存案の検証</Label>
+                                            <Input placeholder="設計中の行間隔 [m]" type="number" value={existingSpacing} onChange={(e) => setExistingSpacing(e.target.value)} />
+                                            {existingSpacing && (
+                                                <div className={`text-sm font-medium p-2 rounded text-center ${!result.isBackside && Number(existingSpacing) >= result.recommendedSpacing ? 'bg-green-100 text-green-700' : (result.isBackside ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700')}`}>
+                                                    {result.isBackside 
+                                                        ? '影の制約はありません' 
+                                                        : (Number(existingSpacing) >= result.recommendedSpacing 
+                                                            ? 'OK: 影はかかりません' 
+                                                            : `NG: ${(result.recommendedSpacing - Number(existingSpacing)).toFixed(2)}m 不足しています`
+                                                          )
+                                                    }
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        {/* Formula Details */}
+                                        <div className="pt-4 border-t">
+                                            <details className="group">
+                                                <summary className="flex items-center gap-2 cursor-pointer text-sm font-medium text-slate-500 hover:text-slate-900 transition-colors">
+                                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="group-open:rotate-90 transition-transform"><path d="m9 18 6-6-6-6"/></svg>
+                                                    📚 計算式・パラメータ詳細
+                                                </summary>
+                                                <div className="mt-3 text-xs text-slate-600 space-y-3 bg-slate-50 p-3 rounded border border-slate-100 font-mono">
+                                                    <div>
+                                                        <p className="font-bold mb-1">1. パネル上端GL高さ (H<sub>top</sub>)</p>
+                                                        <p className="pl-2 mb-1">H<sub>top</sub> = (L<sub>panel</sub> × N) × sin(θ) + H<sub>bottom</sub></p>
+                                                        <p className="pl-2 text-slate-400">
+                                                            {result.hTop.toFixed(3)}m = ({(panelLengthMm/1000).toFixed(3)}m × {verticalCount}) × sin({tiltDeg}°) + {(bottomClearanceMm/1000).toFixed(3)}m
+                                                        </p>
+                                                    </div>
+                                                    <div>
+                                                        <p className="font-bold mb-1">2. 基本影長 (L<sub>basic</sub>)</p>
+                                                        <p className="pl-2 mb-1">L<sub>basic</sub> = H<sub>top</sub> / tan(h<sub>sun</sub>)</p>
+                                                        <p className="pl-2 text-slate-400">
+                                                            {result.lBasic === Infinity ? '∞' : result.lBasic.toFixed(3)}m = {result.hTop.toFixed(3)}m / tan({result.altitudeDeg}°)
+                                                        </p>
+                                                    </div>
+                                                    <div>
+                                                        <p className="font-bold mb-1">3. 方位角差 (ΔA)</p>
+                                                        <p className="pl-2 mb-1">ΔA = | A<sub>sun</sub> - A<sub>panel</sub> |</p>
+                                                        <p className="pl-2 text-slate-400">
+                                                            {Math.abs(result.azimuthDiff).toFixed(1)}° = | {result.azimuthDeg}° - {result.panelAzimuthDeg}° |
+                                                        </p>
+                                                    </div>
+                                                    <div>
+                                                        <p className="font-bold mb-1">4. 行方向影長 (L<sub>row</sub>)</p>
+                                                        <p className="pl-2 mb-1">L<sub>row</sub> = L<sub>basic</sub> × cos(ΔA)</p>
+                                                        <p className="pl-2 text-slate-400">
+                                                            {result.lRow.toFixed(3)}m = {result.lBasic === Infinity ? '∞' : result.lBasic.toFixed(3)}m × cos({Math.abs(result.azimuthDiff).toFixed(1)}°)
+                                                            {result.isBackside && <span className="text-amber-600 ml-2">(背面/真横のため 0m)</span>}
+                                                        </p>
+                                                    </div>
+                                                    <div>
+                                                        <p className="font-bold mb-1">5. 推奨間隔 (Spacing)</p>
+                                                        <p className="pl-2 mb-1">Spacing = L<sub>row</sub> {marginMode === 'factor' ? `× Factor` : `+ Margin`}</p>
+                                                        <p className="pl-2 text-slate-400">
+                                                            {result.recommendedSpacing.toFixed(3)}m = {result.lRow.toFixed(3)}m {marginMode === 'factor' ? `× ${marginFactor}` : `+ ${marginFixedM}m`}
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                            </details>
+                                        </div>
+                                    </CardContent>
+                                </Card>
+                            ) : (
+                                <div className="h-full flex items-center justify-center p-8 border-2 border-dashed rounded-lg text-slate-400 bg-slate-50 min-h-[400px]">
+                                    <div className="text-center">
+                                        <p>条件を入力して<br/>「計算」ボタンを押してください</p>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
